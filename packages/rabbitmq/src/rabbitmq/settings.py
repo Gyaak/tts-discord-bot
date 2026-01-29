@@ -2,7 +2,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class RabbitMQSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="RABBITMQ_")
+    model_config = SettingsConfigDict(
+        env_prefix="RABBITMQ_",
+        env_file=".env",
+        extra="ignore",
+    )
 
     host: str = "localhost"
     port: int = 5672

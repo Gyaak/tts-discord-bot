@@ -25,6 +25,9 @@ class RabbitMQConsumer:
         self,
         queue_name: str,
         handler: MessageHandler,
+        exchange_name: str | None = None,
+        routing_key: str | None = None,
+        exchange_type: str = "direct",
         prefetch_count: int = 1,
         auto_ack: bool = False,
         parse_json: bool = True,
@@ -33,6 +36,19 @@ class RabbitMQConsumer:
         channel.basic_qos(prefetch_count=prefetch_count)
 
         channel.queue_declare(queue=queue_name, durable=True)
+
+        # exchange가 지정되면 bind
+        if exchange_name:
+            channel.exchange_declare(
+                exchange=exchange_name,
+                exchange_type=exchange_type,
+                durable=True,
+            )
+            channel.queue_bind(
+                queue=queue_name,
+                exchange=exchange_name,
+                routing_key=routing_key or queue_name,
+            )
 
         def on_message(
             ch: BlockingChannel,
