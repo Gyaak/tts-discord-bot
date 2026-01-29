@@ -1,0 +1,25 @@
+[tool.uv.workspace]
+members = [
+    "packages/*",
+    "tts-bot",
+    "tts-worker",
+]
+
+[tool.uv.sources]
+rabbitmq = { workspace = true }
+minio = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "black>=25.1.0",
+    "flake8>=7.3.0",
+    "isort>=6.0.1",
+]
+
+[tool.isort]
+profile = "black"
+line_length = 120
+
+[tool.black]
+line-length = 120
+target-version = ["py310"]
