@@ -1,0 +1,22 @@
+[project]
+name = "tts-worker"
+version = "0.1.0"
+description = "TTS Worker using AWS Polly"
+requires-python = ">=3.13"
+dependencies = [
+    "boto3>=1.35.0",
+    "pydantic-settings>=2.0.0",
+    "rabbitmq",
+    "minio",
+]
+
+[tool.uv.sources]
+rabbitmq = { workspace = true }
+minio = { workspace = true }
+
+[tool.uv.build]
+module-root = "src"
+
+[build-system]
+requires = ["uv_build>=0.5.18"]
+build-backend = "uv_build"
