@@ -1,0 +1,16 @@
+[project]
+name = "rabbitmq"
+version = "0.1.0"
+description = "프로젝트에서 사용하는 공통 rabbitmq관련 메소드"
+requires-python = ">=3.13"
+dependencies = [
+    "pika>=1.3.0",
+    "pydantic-settings>=2.0.0",
+]
+
+[tool.uv.build]
+module-root = "src"
+
+[build-system]
+requires = ["uv_build>=0.5.18"]
+build-backend = "uv_build"
