@@ -1,0 +1,19 @@
+[project]
+name = "postgres"
+version = "0.1.0"
+description = "프로젝트에서 사용하는 공통 postgres관련 메소드"
+requires-python = ">=3.13"
+dependencies = [
+    "asyncpg>=0.30.0",
+    "psycopg2-binary>=2.9.0",
+    "greenlet>=3.2.3",
+    "sqlalchemy>=2.0.42",
+    "pydantic-settings>=2.0.0",
+]
+
+[tool.uv.build]
+module-root = "src"
+
+[build-system]
+requires = ["uv_build>=0.5.18"]
+build-backend = "uv_build"
