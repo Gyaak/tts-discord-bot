@@ -13,6 +13,8 @@ class RabbitMQPublisher:
         self._channel: BlockingChannel | None = None
 
     def _get_channel(self) -> BlockingChannel:
+        # 타임아웃 방지용 연결 확인 코드
+        self.connection.ensure_connection()
         if self._channel is None or self._channel.is_closed:
             self._channel = self.connection.create_channel()
         return self._channel

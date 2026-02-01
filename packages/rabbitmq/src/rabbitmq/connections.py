@@ -22,6 +22,8 @@ class RabbitMQConnection:
             port=self.settings.port,
             virtual_host=self.settings.vhost,
             credentials=self._get_credentials(),
+            heartbeat=600,  # 10분마다 heartbeat
+            blocked_connection_timeout=300,  # 5분 block timeout
         )
 
     def ensure_connection(self) -> BlockingConnection:
