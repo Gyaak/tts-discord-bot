@@ -8,6 +8,8 @@ dependencies = [
     "pydantic-settings>=2.0.0",
     "rabbitmq",
     "minio",
+    "postgres",
+    "certifi",
 ]
 
 [tool.uv.sources]
