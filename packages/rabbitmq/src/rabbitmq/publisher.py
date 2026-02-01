@@ -26,15 +26,8 @@ class RabbitMQPublisher:
         message: dict[str, Any] | str | bytes,
         exchange_type: str = "direct",
         persistent: bool = True,
+        retry_count: int = 3,
     ) -> None:
-        channel = self._get_channel()
-
-        channel.exchange_declare(
-            exchange=exchange_name,
-            exchange_type=exchange_type,
-            durable=True,
-        )
-
         if isinstance(message, dict):
             body = json.dumps(message).encode()
         elif isinstance(message, str):
@@ -46,12 +39,34 @@ class RabbitMQPublisher:
             delivery_mode=pika.DeliveryMode.Persistent if persistent else pika.DeliveryMode.Transient,
         )
 
-        channel.basic_publish(
-            exchange=exchange_name,
-            routing_key=routing_key,
-            body=body,
-            properties=properties,
-        )
+        for attempt in range(retry_count):
+            try:
+                channel = self._get_channel()
+
+                channel.exchange_declare(
+                    exchange=exchange_name,
+                    exchange_type=exchange_type,
+                    durable=True,
+                )
+
+                channel.basic_publish(
+                    exchange=exchange_name,
+                    routing_key=routing_key,
+                    body=body,
+                    properties=properties,
+                )
+                return  # Success
+            except (pika.exceptions.StreamLostError, pika.exceptions.AMQPConnectionError,
+                    pika.exceptions.ChannelWrongStateError, BrokenPipeError) as e:
+                print(f"[RABBITMQ] Publish failed (attempt {attempt + 1}/{retry_count}): {e}")
+                # Close and reset connection
+                self.close()
+                self.connection.close()
+                if attempt < retry_count - 1:
+                    print(f"[RABBITMQ] Retrying publish...")
+                else:
+                    print(f"[RABBITMQ] All retry attempts failed")
+                    raise
 
     def close(self) -> None:
         if self._channel and self._channel.is_open:
