@@ -37,8 +37,15 @@ class TTSBot(commands.Bot):
         for cog in COGS:
             await self.load_extension(cog)
 
+        # Sync slash commands
+        synced = await self.tree.sync()
+        print(f"Slash commands synced: {len(synced)} commands", flush=True)
+        for cmd in synced:
+            print(f"  - /{cmd.name}", flush=True)
+
     async def on_ready(self) -> None:
-        print(f"Logged in as {self.user}")
+        print(f"Logged in as {self.user}", flush=True)
+        print(f"Bot is ready! Guilds: {len(self.guilds)}", flush=True)
 
     def run_bot(self) -> None:
         self.run(self.bot_settings.token)
