@@ -2,7 +2,7 @@ import asyncio
 import threading
 from io import BytesIO
 from typing import Any, TYPE_CHECKING
-
+import re
 import discord
 from discord.ext import commands
 from minio import MinIOClient
@@ -50,6 +50,15 @@ class TTSCog(commands.Cog):
         # 봇이 음성 채널에 연결되어 있는지 확인
         if not message.guild.voice_client:
             return
+
+        # 링크 제거 필터
+        message.content = re.sub(r'https?://\S+', '', message.content)
+
+        # 멘션 제거 필터
+        message.content = re.sub(r'<[^>]*>', '', message.content)
+
+        # 특수문자 제거 필터
+        message.content = re.sub(r'[^\w\s]|_', '', message.content)
 
         print(f"[MESSAGE] Received message from {message.author}: '{message.content}'", flush=True)
 
