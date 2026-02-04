@@ -12,10 +12,18 @@ class RabbitMQPublisher:
         self.connection = connection or get_rabbitmq_connection()
         self._channel: BlockingChannel | None = None
 
-    def _get_channel(self) -> BlockingChannel:
-        # 타임아웃 방지용 연결 확인 코드
-        self.connection.ensure_connection()
-        if self._channel is None or self._channel.is_closed:
+    def _get_channel(self, force_new: bool = False) -> BlockingChannel:
+        # force_new가 True이거나 채널이 없거나 닫혀있으면 새로 생성
+        if force_new or self._channel is None or self._channel.is_closed:
+            try:
+                # 기존 채널 정리
+                if self._channel and self._channel.is_open:
+                    self._channel.close()
+            except Exception:
+                pass
+
+            # 연결 확인 및 새 채널 생성
+            self.connection.ensure_connection()
             self._channel = self.connection.create_channel()
         return self._channel
 
@@ -26,7 +34,6 @@ class RabbitMQPublisher:
         message: dict[str, Any] | str | bytes,
         exchange_type: str = "direct",
         persistent: bool = True,
-        retry_count: int = 3,
     ) -> None:
         if isinstance(message, dict):
             body = json.dumps(message).encode()
@@ -39,34 +46,50 @@ class RabbitMQPublisher:
             delivery_mode=pika.DeliveryMode.Persistent if persistent else pika.DeliveryMode.Transient,
         )
 
-        for attempt in range(retry_count):
+        # First attempt with existing channel
+        try:
+            channel = self._get_channel()
+
+            channel.exchange_declare(
+                exchange=exchange_name,
+                exchange_type=exchange_type,
+                durable=True,
+            )
+
+            channel.basic_publish(
+                exchange=exchange_name,
+                routing_key=routing_key,
+                body=body,
+                properties=properties,
+            )
+        except (pika.exceptions.StreamLostError, pika.exceptions.AMQPConnectionError,
+                pika.exceptions.ChannelWrongStateError, BrokenPipeError) as e:
+            # Connection lost, create new connection and retry once
+            print(f"[RABBITMQ] Connection lost: {e}, creating new connection...")
+
+            # Force close old connection
             try:
-                channel = self._get_channel()
-
-                channel.exchange_declare(
-                    exchange=exchange_name,
-                    exchange_type=exchange_type,
-                    durable=True,
-                )
-
-                channel.basic_publish(
-                    exchange=exchange_name,
-                    routing_key=routing_key,
-                    body=body,
-                    properties=properties,
-                )
-                return  # Success
-            except (pika.exceptions.StreamLostError, pika.exceptions.AMQPConnectionError,
-                    pika.exceptions.ChannelWrongStateError, BrokenPipeError) as e:
-                print(f"[RABBITMQ] Publish failed (attempt {attempt + 1}/{retry_count}): {e}")
-                # Close and reset connection
                 self.close()
                 self.connection.close()
-                if attempt < retry_count - 1:
-                    print(f"[RABBITMQ] Retrying publish...")
-                else:
-                    print(f"[RABBITMQ] All retry attempts failed")
-                    raise
+            except Exception:
+                pass
+
+            # Get fresh channel (will create new connection)
+            channel = self._get_channel(force_new=True)
+
+            channel.exchange_declare(
+                exchange=exchange_name,
+                exchange_type=exchange_type,
+                durable=True,
+            )
+
+            channel.basic_publish(
+                exchange=exchange_name,
+                routing_key=routing_key,
+                body=body,
+                properties=properties,
+            )
+            print(f"[RABBITMQ] Reconnection successful")
 
     def close(self) -> None:
         if self._channel and self._channel.is_open:
