@@ -1,0 +1,75 @@
+# Python cache and build artifacts
+__pycache__/
+*.py[codz]
+*$py.class
+*.so
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.pixi/
+
+# Environment files
+.env
+.envrc
+.env.example
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+.claude/
+.cursorignore
+.cursorindexingignore
+
+# Testing and coverage
+.pytest_cache/
+.coverage
+.hypothesis/
+htmlcov/
+*.cover
+.tox/
+.nox/
+
+# Documentation
+*.md
+README.md
+docs/
+excalidraw/
+images/
+
+# CI/CD
+.github/
+
+# Logs
+*.log
+
+# Database
+*.sqlite3
+sql/
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Development tools
+.mypy_cache/
+.ruff_cache/
+.pytype/
+
+# Other
+.DS_Store
+*.swp
+*.swo
+*~

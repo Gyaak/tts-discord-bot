@@ -1,0 +1,28 @@
+# TTS Worker Dockerfile
+FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy workspace configuration files
+COPY pyproject.toml uv.lock ./
+
+# Copy shared packages and tts-worker source only
+COPY packages/ ./packages/
+COPY tts-worker/ ./tts-worker/
+
+# Set UV to use system Python
+ENV UV_SYSTEM_PYTHON=1
+
+# Install dependencies only for tts-worker package
+RUN uv sync --frozen --no-dev --package tts-worker
+
+# Change to tts-worker directory for execution
+WORKDIR /app/tts-worker
+
+# Run the worker
+CMD ["uv", "run", "--project", "/app", "python", "-m", "tts_worker"]

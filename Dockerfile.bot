@@ -1,0 +1,33 @@
+# TTS Bot Dockerfile
+FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
+
+WORKDIR /app
+
+# Install system dependencies for discord.py voice support
+RUN apt-get update && apt-get install -y \
+    libffi-dev \
+    libnacl-dev \
+    python3-dev \
+    ffmpeg \
+    opus-tools \
+    libopus0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy workspace configuration files
+COPY pyproject.toml uv.lock ./
+
+# Copy shared packages and tts-bot source only
+COPY packages/ ./packages/
+COPY tts-bot/ ./tts-bot/
+
+# Set UV to use system Python
+ENV UV_SYSTEM_PYTHON=1
+
+# Install dependencies only for tts-bot package
+RUN uv sync --frozen --no-dev --package tts-bot
+
+# Change to tts-bot directory for execution
+WORKDIR /app/tts-bot
+
+# Run the bot
+CMD ["uv", "run", "--project", "/app", "python", "-m", "tts_bot"]
