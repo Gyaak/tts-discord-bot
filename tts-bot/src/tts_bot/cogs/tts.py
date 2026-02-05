@@ -8,7 +8,7 @@ from discord.ext import commands
 from minio import MinIOClient
 from rabbitmq import RabbitMQConsumer, RabbitMQPublisher
 from postgres.connection import get_async_session_context
-from tts_bot.repository import UserRepository, GuildChannelRepository
+from tts_bot.repository import UserRepository, GuildChannelRepository, GuildSettingsRepository
 
 if TYPE_CHECKING:
     from ..bot import TTSBot
@@ -47,10 +47,6 @@ class TTSCog(commands.Cog):
         if message.content.startswith(self.bot.command_prefix):
             return
 
-        # 봇이 음성 채널에 연결되어 있는지 확인
-        if not message.guild.voice_client:
-            return
-
         # 링크 제거 필터
         message.content = re.sub(r'https?://\S+', '', message.content)
 
@@ -60,17 +56,68 @@ class TTSCog(commands.Cog):
         # 특수문자 제거 필터
         message.content = re.sub(r'[^\w\s]|_', '', message.content)
 
+        # 빈 메시지는 무시
+        if not message.content.strip():
+            return
+
         print(f"[MESSAGE] Received message from {message.author}: '{message.content}'", flush=True)
 
-        # Check if channel is registered for TTS
+        # Check if channel is registered for TTS first
         try:
             async with get_async_session_context() as session:
                 channel_repo = GuildChannelRepository(session)
                 if not await channel_repo.is_channel_enabled(message.guild.id, message.channel.id):
                     print(f"[MESSAGE] Channel {message.channel.id} not enabled for TTS", flush=True)
                     return
+        except Exception as e:
+            print(f"[ERROR] Failed to check channel registration: {e}")
+            return
 
-            # Get or create user settings
+        # 봇이 음성 채널에 연결되어 있지 않으면 기본 음성 채널에 자동 입장
+        if not message.guild.voice_client:
+            try:
+                async with get_async_session_context() as session:
+                    settings_repo = GuildSettingsRepository(session)
+                    default_voice_channel_id = await settings_repo.get_default_voice_channel(message.guild.id)
+
+                    if not default_voice_channel_id:
+                        print(f"[VOICE] No default voice channel set for guild {message.guild.id}", flush=True)
+                        return
+
+                    # Get voice channel
+                    voice_channel = message.guild.get_channel(default_voice_channel_id)
+                    if not voice_channel:
+                        print(f"[VOICE] Default voice channel {default_voice_channel_id} not found", flush=True)
+                        return
+
+                    # Join the voice channel (same as !join command)
+                    print(f"[VOICE] Auto-joining voice channel {voice_channel.name}", flush=True)
+                    await voice_channel.connect(reconnect=True, timeout=60.0)
+                    print(f"[VOICE] Successfully joined {voice_channel.name}", flush=True)
+
+                    # Wait for voice client to be fully ready
+                    max_wait = 5  # 최대 5초 대기
+                    for i in range(max_wait * 10):  # 0.1초씩 체크
+                        if message.guild.voice_client and message.guild.voice_client.is_connected():
+                            print(f"[VOICE] Voice client is ready after {i * 0.1:.1f}s", flush=True)
+                            break
+                        await asyncio.sleep(0.1)
+                    else:
+                        print(f"[ERROR] Voice client not ready after {max_wait}s wait", flush=True)
+                        return
+            except Exception as e:
+                print(f"[ERROR] Failed to auto-join voice channel: {e}")
+                import traceback
+                traceback.print_exc()
+                return
+
+        # Verify voice client is connected
+        if not message.guild.voice_client or not message.guild.voice_client.is_connected():
+            print(f"[ERROR] Voice client not connected, skipping TTS", flush=True)
+            return
+
+        # Get or create user settings
+        try:
             async with get_async_session_context() as session:
                 user_repository = UserRepository(session)
                 user = await user_repository.get_or_create_user(

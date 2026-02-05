@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 from discord import ui, app_commands
 from postgres.connection import get_async_session_context
-from tts_bot.repository import UserRepository, GuildChannelRepository
+from tts_bot.repository import UserRepository, GuildChannelRepository, GuildSettingsRepository
 
 
 class VoiceSettingsModal(ui.Modal, title="Voice Settings"):
@@ -91,6 +91,33 @@ class VoiceCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
+    @commands.Cog.listener()
+    async def on_voice_state_update(
+        self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState
+    ) -> None:
+        """Automatically leave voice channel when no one else is in it."""
+        # 봇 자신의 이벤트는 무시
+        if member.bot:
+            return
+
+        # 봇이 음성 채널에 있는지 확인
+        voice_client = member.guild.voice_client
+        if not voice_client:
+            return
+
+        # 봇이 있는 채널
+        bot_channel = voice_client.channel
+        if not bot_channel:
+            return
+
+        # 채널에 사람이 있는지 확인 (봇 제외)
+        human_members = [m for m in bot_channel.members if not m.bot]
+
+        # 사람이 아무도 없으면 퇴장
+        if len(human_members) == 0:
+            print(f"[VOICE] No humans left in channel {bot_channel.name}, leaving...", flush=True)
+            await voice_client.disconnect()
+
     @commands.command(name="join")
     async def join(self, ctx: commands.Context) -> None:
         if not ctx.author.voice or not ctx.author.voice.channel:
@@ -148,6 +175,27 @@ class VoiceCog(commands.Cog):
                 await ctx.send(f"채널 {ctx.channel.mention}을 TTS 채널에서 제거했습니다.")
             else:
                 await ctx.send(f"채널 {ctx.channel.mention}은 TTS 채널로 등록되어 있지 않습니다.")
+
+    @commands.command(name="set-voice")
+    async def set_voice(self, ctx: commands.Context) -> None:
+        """Set the default voice channel for this guild."""
+        if not ctx.guild:
+            await ctx.send("This command can only be used in a server.")
+            return
+
+        # Check if bot is in a voice channel
+        if not ctx.voice_client or not ctx.voice_client.channel:
+            await ctx.send("봇이 음성 채널에 있지 않습니다. 먼저 !join으로 봇을 음성 채널에 입장시켜주세요.")
+            return
+
+        voice_channel = ctx.voice_client.channel
+
+        async with get_async_session_context() as session:
+            settings_repo = GuildSettingsRepository(session)
+
+            # Set default voice channel
+            await settings_repo.set_default_voice_channel(ctx.guild.id, voice_channel.id)
+            await ctx.send(f"기본 음성 채널을 {voice_channel.mention}로 설정했습니다.")
 
     @app_commands.command(name="gyak-voice-config", description="Configure your TTS voice settings (rate and pitch)")
     async def gyak_voice_config(self, interaction: discord.Interaction) -> None:
